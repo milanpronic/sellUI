@@ -1,0 +1,281 @@
+/*
+main {
+    position: relative;
+
+    &::before {
+        content: "";
+        height: 20%;
+        width: 100%;
+        background-color: rgba($bg-darkest, 0.5);
+        position: absolute;
+        top: 0;
+        left: 0; 
+        right: 0;
+        z-index: 0;
+
+    }
+}
+*/
+.ethereum-unit-converter-list {
+    
+        li {
+            input {
+                margin-bottom: 5px;
+            }
+        }
+
+}
+
+.add-wallet {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+
+    position: relative;
+    z-index: 1;
+    background-color: $bg-medium;
+    color: $color-bright;
+    border: 1px solid $bg-darkest;
+    background-color: $bg-dark;
+    font-size: 16px;
+    padding: calc(#{$gutter} / 4) $gutter;
+    border-radius: $border-radius;
+    text-transform: uppercase;
+    font-weight: bold;
+
+    i {
+        font-size: 16px;
+        color: $color-bright;
+        margin-right: 10px;
+        transition: all 300ms ease-in-out;
+    }
+
+    &:hover {
+        background-color: $bg-darkest;
+        color: $color-primary;
+        border-color: $color-primary;
+
+        i {
+            color: $color-primary;
+        }
+    }
+
+
+}
+
+// Section ID
+#wallets {
+    margin-top: 0px;
+}
+
+// Wallets Header
+.wallets {
+    &--header {
+        display: grid;
+        grid-template-columns: 1fr 550px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: $gutter;
+        margin-top: $gutter;
+
+        @include mq('laptop') {
+            grid-template-columns: 1fr;
+            gap: calc(#{$gutter} / 2);
+        }
+
+        &-right {
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            position: relative;
+            gap: calc(#{$gutter} / 2);
+
+            .btn {
+                height: 100%;
+            }
+            .dropdown-menu {
+                min-width: 550px;
+                margin-top: 10px !important;
+                padding: calc(#{$gutter} / 2);
+
+                label {
+                    color: $color-bright;
+                }
+                li {
+                    margin-bottom: calc(#{$gutter} / 2);
+
+                    &:last-child {
+                        margin-bottom: 0px;
+                    }
+                }
+                input {
+                    margin-bottom: 0px;
+
+                    &.approve-input {
+                        border-color: $color-green;
+                    }
+                    &.sell-input {
+                        border-color: $color-red;
+                    }
+                }
+            }
+
+            @include mq('laptop') {
+                flex-direction: column;
+                .btn {
+                    width: 100%;
+                }
+                .dropdown-menu {
+                    min-width: 100%;
+                }
+            }
+        }
+    }
+}
+
+// Wallet Panel
+.wallet {
+
+    &--delete-button {
+        position: absolute;
+        z-index: 2;
+        border: 1px solid rgba($bg-darkest, 1);
+        background-color: $bg-medium;
+        border-radius: 100%;
+        right: -8px;
+        top: -8px;
+       
+        margin: 0 auto;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        transition: all ease-in-out 400ms;
+        a {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+        }
+
+        i, p {
+             transition: all ease-in-out 400ms;
+             margin-bottom: 0px;
+        }
+        &:hover {
+            i, p {
+                color: $color-red;
+            }
+        }
+    }
+
+    &--panel-block {
+        position: relative;
+        width: 100%;
+        padding: $gutter;
+        border-radius: $border-radius;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        border: 1px solid $bg-darkest;
+        background-color: $bg-medium;
+
+    }
+
+    &--input-group {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: space-between;
+
+        label {
+            color: $color-bright;
+        }
+        
+        input, .form-control, select, .form-select {
+            margin-bottom: 0px;
+        }
+
+
+    }
+
+    &--token-amount-group {
+        margin-top: 10px;
+        .amount-token-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: $border-radius;
+            background-color: $bg-darkest;
+            padding: 5px 10px;
+
+            p, h6 {
+                margin-bottom: 0px;
+            }
+            p {
+               color: $color-primary;
+            }
+        }
+        input {
+            margin-bottom: 10px;
+        }
+
+        .amount-price-ethereum {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            text-align: center;
+            justify-content: center;
+            margin-bottom: 10px;
+
+            img {
+                margin-right: 5px;
+                max-height: 22px;
+                object-fit: contain;
+                width: 30px;
+            }
+            h6 {
+                margin-bottom: 0px;
+            }
+        }
+
+        .token-amount {
+            text-align: center;
+        }
+
+    }
+    &--token-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    &--input-row {
+        input, .form-control, select, .form-select {
+            margin-bottom: 0px;
+        }
+    }
+    &--input-boxes-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    &--footer {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+}
+
+// Mobile Header
+#mobile-header {
+    display: none;
+    
+    @include mq('mobile') {
+        display: block;
+    }
+}

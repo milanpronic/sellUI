@@ -1,0 +1,7 @@
+.wallets--header-right div {
+    gap: calc(30px / 2);
+}
+
+.wallets--header {
+    gap: calc(30px / 2)
+}

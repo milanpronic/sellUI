@@ -1,0 +1,143 @@
+ // button variables
+ $btn-padding: calc(#{$gutter} / 4) calc(#{$gutter} / 2);
+ $btn-font-size: 16px;
+ $btn-font-color: $color-bright;
+ 
+ // button types e.g btn full-w
+ $btn-types: "full-w", "small", "white";
+ 
+ // Button Mixins
+ 
+ @mixin btn-default() {
+     display: inline-flex;
+     justify-content: center;
+     align-items: center;
+ 
+     padding: $btn-padding;
+     border: none;
+     border-radius: $border-radius;
+ 
+     text-align: center;
+     text-decoration: none;
+     text-transform: uppercase;
+     font-weight: bold;
+     font-size: $btn-font-size;
+     color: $btn-font-color;
+     background-color: $color-secondary;
+     cursor: pointer;
+     
+     position: relative;
+     z-index: 1;
+     transition: all 0.2s;
+     &:hover, &:active, &:focus {
+         color: $btn-font-color;
+         background-color: lighten($color-secondary, 10%);
+     }
+ 
+     i:first-child {
+         margin-right: 0.5rem;
+     }
+ 
+     &:last-child {
+         margin-right: 0;
+     }
+
+ }
+ 
+ @mixin btn($type: 'default') {
+     @include btn-default;
+     
+ 
+ }
+ // Button Classes
+ 
+ .btn {
+     @include btn();
+ }
+
+ .btn.outlined {
+    color: $btn-font-color;
+    background-color: transparent;
+    border: 1px solid $bg-lightest;
+
+    &:hover, &:active, &:focus {
+       opacity: 1;
+       background-color: $color-primary;
+       color: $color-bright;
+       border-color: $color-primary;
+    }
+ }
+ 
+ .btn.large {
+    padding: calc(#{$gutter} / 2) $gutter;
+ }
+ 
+ .btn {
+ 
+     & + & {
+         margin-left: 1em;
+     }
+ }
+ .btn.full-width {
+    display: block;
+    width: 100%;
+
+    & + & {
+        margin-left: 0em;
+    }
+ }
+ 
+ .btn.small {
+    padding: 5px 10px;
+    font-size: 14px;
+ }
+
+ .btn.green {
+    color: $btn-font-color;
+    background-color: $color-green;
+
+    &:hover, &:active, &:focus {
+        background-color: darken($color-green, 20%);
+    }
+ }
+ .btn.red {
+    color: $btn-font-color;
+    background-color: $color-red;
+
+    &:hover, &:active, &:focus {
+        background-color: darken($color-red, 5%);
+    }
+ }
+ 
+ .btn.dark {
+    color: $color-faded;
+    background-color: $bg-dark;
+    border: 0px solid $bg-light;
+
+    &:hover, &:active, &:focus {
+       opacity: 1;
+       background-color: $bg-darkest;
+       color: $color-primary;
+       border-color: $bg-lightest;
+    }
+ }
+
+ // Icons within buttons
+ 
+  .btn > svg {
+     fill: currentcolor;
+     // … etc.
+   }
+   
+   // Inline button
+ 
+   .btn.inline {
+     display: inline-block;
+   }
+ 
+   .btn.focus, .btn:focus, button:focus {
+     outline: 0;
+     box-shadow: none;
+     text-decoration: none;
+ }
+ 

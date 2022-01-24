@@ -1,0 +1,18 @@
+
+.transactions-table {
+
+    .date {
+        text-align: left;
+    }
+    .sold {
+        color: $color-red;
+    }
+    .received {
+        color: $color-green;
+
+        img {
+            max-height: 22px;
+            margin-right: 5px;
+        }
+    }
+}

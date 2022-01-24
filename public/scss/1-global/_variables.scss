@@ -1,0 +1,42 @@
+// Text Variables
+$body-text: #a3a7b4;
+$color-primary: #2fbff3;
+$color-secondary: #1c1e4c; //#9369ec;
+$color-bright: #ffffff;
+$color-faded: #6e6f74;
+$color-discord: hsl(235, 86%, 65%); //5865f2
+$color-red: #f64358;
+$color-green: #40c790;
+$font-stack: ('Raleway', 'Roboto', sans-serif);
+$font-stack-title: ('Sora', 'Montserrat', sans-serif);
+
+// Background colours
+$bg-darkest: #1a1a1e;
+$bg-dark: #212124;
+$bg-medium: #2a2a2e;
+$bg-light: #3c3e42;
+$bg-lightest: #60636b;
+
+// Main Body
+$body-background: #2f3033;
+$body-size: 14px;
+$body-sm-size: 14px;
+
+// Others
+$max-width: 2420px;
+$narrow-width: 1240px;
+$hover-brightness: 20%; // set hover brightness
+$gutter: 30px;
+$border-radius: 5px;
+
+// Breakpoints
+$breakpoints: (
+  'tiny': (max-width: 478px),
+  'mobile': (max-width: 768px),
+  'tablet': (max-width: 992px),
+  'laptop': (max-width: 1200px),
+  'desktop': (max-width: 1400px),
+  'wide-desktop': (max-width: 1640px),
+  'extra-wide-desktop': (min-width: 1920px),
+  '4k-desktop': (min-width: 2400px),
+);
