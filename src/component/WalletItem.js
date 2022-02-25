@@ -3,83 +3,65 @@ import {ethers} from 'ethers';
 import LoadingIcon from './LoadingIcon';
 import ethIcon from '../images/svg/ETH-circle-icon.svg';
 import NotificationManager from 'react-notifications/lib/NotificationManager';
-const wethAddy = process.env.REACT_APP_NETWORK == "mainnet" ? "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": "0xc778417e063141139fce010982780140aa0cd5ab";
-const provider = new ethers.providers.JsonRpcProvider(`https://${process.env.REACT_APP_NETWORK}.infura.io/v3/1c8b15f18bcf4477810d7d44980d2413`);
-const routerAddy = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D";
 
-export default function WalletItem({idx, setting, accounts, tokens, onDelClick, onChangeSetting, clock, routerContract, addTransaction, ethPrice, socketNum, pendings}) {
-  const [walletAddy, setWalletAddy] = useState("");
-  const [tokenAddy, setTokenAddy] = useState("");
+const provider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL);
+
+export default function WalletItem({accounts, tokens, setting, balances, addTransaction, ethPrice, socketNum, pendings, idx, onDelClick, onChangeAccount, onChangeToken, onChangePercent}) {
+  
   const [percent, setPercent] = useState(100);
-  const [loading, setLoading] = useState(false);
-  const [receiveEth, setReceiveEth] = useState(0);
   const [tokenAmount, setTokenAmount] = useState(0);
-  const [symbol, setSymbol] = useState("Tokens");
-  const [decimals, setDecimals] = useState("");
-  const [allowance, setAllowance] = useState("0");
-
+  
   const [approveLoading, setApproveLoading] = useState(false);
   const [sellLoading, setSellLoading] = useState(false);
   const [speedupLoading, setSpeedupLoading] = useState(false);
 
   useEffect(() => {
-    setWalletAddy(setting.walletAddy);
-    setTokenAddy(setting.tokenAddy);
     setPercent(setting.percent);
-  }, []);
+  }, [setting.percent]);
+
+  let decimals = 0;
+  let symbol = "";
+  let tokenName = "";
+
+  if(setting.tokenAddy) {
+    for(var i = 0; i < tokens.length; i ++) {
+      if(tokens[i].address == setting.tokenAddy) {
+        decimals = tokens[i].decimals;
+        symbol = tokens[i].symbol;
+        tokenName = tokens[i].name;
+      }
+    }
+  }
 
   useEffect(() => {
-    onChangeSetting(idx, {
-      walletAddy, tokenAddy, percent
-    })
-  }, [walletAddy, tokenAddy, percent]);
-
-  useEffect(() => {
-    if(walletAddy && tokenAddy)
+    console.log("wallet or token has changed", idx, setting);
+    if(setting.walletAddy && setting.tokenAddy)
     tokens.map(token => {
-      if(token.address == tokenAddy) {
-        setSymbol(token.symbol);
-        setDecimals(token.decimals);
+      if(token.address == setting.tokenAddy) {
         
-        const tokenContract = new ethers.Contract(tokenAddy, [
+        const tokenContract = new ethers.Contract(setting.tokenAddy, [
           'function allowance(address owner, address spender) public view returns (uint)',
           'function balanceOf(address account) external view returns (uint256)'
         ], provider);
-        tokenContract.allowance(walletAddy, routerAddy).then(value => {
-          setAllowance(value + '');
-        })
-        tokenContract.balanceOf(walletAddy).then(value => {
+        tokenContract.balanceOf(setting.walletAddy).then(value => {
           setTokenAmount(ethers.utils.formatUnits(value, token.decimals));
         })
       }
     })
-  }, [walletAddy, tokenAddy]);
-
-  const onPercentUp = (percent) => {
-    //console.log(idx, tokenAddy, tokenAmount, decimals, percent);
-    if(tokenAmount && tokenAddy) {
-      //console.log(tokenAmount);
-      const amountIn = ethers.utils.parseUnits(tokenAmount, decimals).mul(percent).div(100);        
-      const path = [tokenAddy, wethAddy];
-      if(amountIn.gt(0)) {
-        setLoading(true);
-        routerContract.getAmountsOut(amountIn, path).then(amounts => {
-          const receiveAmount = ethers.utils.formatEther(amounts[1]);
-          setReceiveEth(receiveAmount * 1);
-        }).finally(() => {
-          setLoading(false);
-        })
-      } else {
-        setReceiveEth(0);
-      }
-    }
-  } 
+  }, [setting.walletAddy, setting.tokenAddy]);
 
   useEffect(() => {
-    onPercentUp(percent);
-  }, [clock, symbol, tokenAmount]);
-  
+    console.log("idx has changed", idx);
+  }, [idx]);
 
+  useEffect(() => {
+    console.log("tokens has changed", idx, tokens);
+  }, [tokens]);
+
+  useEffect(() => {
+    console.log("balances has changed", idx, balances);
+  }, [balances]);
+  
   const onApproveClick = () => {
     try {
       const requestOption = {
@@ -124,7 +106,7 @@ export default function WalletItem({idx, setting, accounts, tokens, onDelClick, 
       const requestOption = {
         method: "POST",
         body: JSON.stringify({
-          tokenAddy, walletAddy, amountIn: ethers.utils.parseUnits(tokenAmount, decimals).mul(percent).div(100) + '', maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, limit : gasLimit, slippage, socketNum, idx
+          tokenAddy, walletAddy, amountIn: ethers.utils.parseUnits(tokenAmount, decimals).mul(percent).div(100) + '', maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, limit : gasLimit, slippage, socketNum
         }),
         headers: {
           "Content-type": "application/json"
@@ -167,7 +149,7 @@ export default function WalletItem({idx, setting, accounts, tokens, onDelClick, 
       const requestOption = {
         method: "POST",
         body: JSON.stringify({
-          tokenAddy, maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, limit : gasLimit, slippage, socketNum, idx, hash
+          tokenAddy, maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, limit : gasLimit, slippage, socketNum, hash
         }),
         headers: {
           "Content-type": "application/json"
@@ -206,18 +188,17 @@ export default function WalletItem({idx, setting, accounts, tokens, onDelClick, 
     }
   }
 
-    return (
+  return (
         <div className="wallet--panel-block" data-aos="fade-up">
-            <div className="wallet--delete-button" title="Delete Panel" onClick={() => onDelClick(idx)}>
-                <a href="#"><i className="fas fa-times"></i></a>
+            <div className="wallet--delete-button" title="Delete Panel"  onClick={() => onDelClick(idx)}>
+                <a><i className="fas fa-times"></i></a>
             </div>
-            <h5>Wallet Name #{idx + 1}</h5>
             <div className="wallet--input-group">
                 <select
                     className="form-select"
                     aria-label="Default select wallet"
-                    value={walletAddy}
-                    onChange={(event) => {setWalletAddy(event.target.value)}}
+                    value={setting.walletAddy}
+                    onChange={(event) => {onChangeAccount(idx, event.target.value)}}
                 >
                     <option value="">Wallet</option>
                     {accounts.map((account, account_idx) => {
@@ -229,8 +210,8 @@ export default function WalletItem({idx, setting, accounts, tokens, onDelClick, 
                 <select
                     className="form-select"
                     aria-label="Default select token"
-                    value={tokenAddy}
-                    onChange={(event) => {setTokenAddy(event.target.value)}}
+                    value={setting.tokenAddy}
+                    onChange={(event) => {onChangeToken(idx, event.target.value)}}
                 >
                     <option value="">Token</option>
                     {
@@ -243,50 +224,46 @@ export default function WalletItem({idx, setting, accounts, tokens, onDelClick, 
 
             <div className="wallet--token-amount-group">
                 <div className="amount-price-ethereum">
-                  {loading ? <LoadingIcon style={{marginRight: '5px'}} /> : <img src={ethIcon} />}<h6>{receiveEth.toFixed(6)}(${(receiveEth*ethPrice).toFixed(1)})</h6>
+                  <img src={ethIcon} />
+                  <h6>{balances[idx] ? (ethers.utils.formatUnits(balances[idx], 18)*1).toFixed(6) : 0}(${ balances[idx] ? (ethers.utils.formatUnits(balances[idx], 18)*ethPrice).toFixed(1) : 0})</h6>
                 </div>
                 <input
-                    type="range"
-                    className="customrange"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={percent}
+                    type="range" className="customrange" min="0" max="100" step="1" value={percent}
                     style={{background: 'linear-gradient(to right, #3c3e42 0%, #3c3e42 ' + percent + '%, #1a1a1e ' + percent + '%, #1a1a1e ' + percent + '%)'}}
                     onChange={(event) => setPercent(event.target.value)}
-                    onMouseUp={() => onPercentUp(percent)}
+                    onMouseUp={() => onChangePercent(idx, percent)}
                 />
                 <div className="amount-token-flex">
-                    <p className="token-amount">{(tokenAmount * percent / 100).toFixed(3)} {symbol}</p>
+                    <p className="token-amount">{(tokenAmount*1).toFixed(3)} {symbol}</p>
                     <p>{percent}%</p>
                 </div>
             </div>
             <div className="wallet--token-buttons">
-                <a href="#" className="btn small full-width dark" onClick={() => { onPercentUp(25); setPercent(25) }}>25%</a>
-                <a href="#" className="btn small full-width dark" onClick={() => { onPercentUp(50); setPercent(50) }}>50%</a>
-                <a href="#" className="btn small full-width dark" onClick={() => { onPercentUp(75); setPercent(75) }}>75%</a>
-                <a href="#" className="btn small full-width dark" onClick={() => { onPercentUp(100); setPercent(100) }}>100%</a>
+                <a className="btn small full-width dark" onClick={() => { onChangePercent(idx, 25); setPercent(25) }}>25%</a>
+                <a className="btn small full-width dark" onClick={() => { onChangePercent(idx, 50); setPercent(50) }}>50%</a>
+                <a className="btn small full-width dark" onClick={() => { onChangePercent(idx, 75); setPercent(75) }}>75%</a>
+                <a className="btn small full-width dark" onClick={() => { onChangePercent(idx, 100); setPercent(100) }}>100%</a>
             </div>
             <hr/>
             <div className="wallet--footer">
-                {approveLoading ? 
-                <button type="button" className="btn full-width sell disabled">
-                  <LoadingIcon />
-                </button>
-                :!allowance || allowance && tokenAmount && percent && allowance / Math.pow(10, decimals) < tokenAmount * percent / 100 ?
-                <button type="button" className="btn full-width approve green" onClick={onApproveClick}>Approve</button> 
-                : <button type="button" className="btn full-width approve green disabled">Approve</button>
-              }
-              {sellLoading ? 
-                <button type="button" className="btn full-width sell disabled">
-                  <LoadingIcon />
-                </button>
-                :  !allowance || allowance && tokenAmount && percent && allowance / Math.pow(10, decimals) < tokenAmount * percent / 100 ?
-                <button type="button" className="btn full-width sell red disabled">Sell</button>
+              {
+                approveLoading ? 
+                  <button type="button" className="btn full-width sell disabled">
+                    <LoadingIcon />
+                  </button>
                 :
-                <button type="button" className="btn full-width sell red" onClick={onSellClick}>Sell</button>
+                  <button type="button" className="btn full-width approve green" onClick={onApproveClick}>Approve</button> 
               }
-              {pendings.length > 0 ? 
+              {
+                sellLoading ? 
+                  <button type="button" className="btn full-width sell disabled">
+                    <LoadingIcon />
+                  </button>
+                :
+                  <button type="button" className="btn full-width sell red" onClick={onSellClick}>Sell</button>
+              }
+              {
+                pendings.length > 0 &&
                 <>
                   <a href={(process.env.REACT_APP_NETWORK == "mainnet" ? "https://etherscan.io/tx/": "https://ropsten.etherscan.io/tx/") + pendings[0].hash} target="_blank" className="btn full-width sell green">View EtherScan</a>
                   {speedupLoading ? 
@@ -295,10 +272,8 @@ export default function WalletItem({idx, setting, accounts, tokens, onDelClick, 
                     <button type="button" className="btn full-width sell red" onClick={() => {onSpeedClick(pendings[0].hash)}}>Speed Up</button>
                   }
                 </>
-                :
-                <></>
               }
             </div>
         </div>
-    )
+  )
 }

@@ -1,28 +1,73 @@
 import { useEffect, useState } from 'react';
 import {ethers} from 'ethers';
 import { NotificationContainer, NotificationManager } from "react-notifications";
+import 'react-notifications/lib/notifications.css';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+
 import AOS from 'aos';
-import WalletItem from './component/WalletItem';
-import TransactionList from './component/TransactionList';
-import LoadingIcon from './component/LoadingIcon';
-import 'react-notifications/lib/notifications.css';
 import 'aos/dist/aos.css';
 import './App.css';
 
-const provider = new ethers.providers.JsonRpcProvider(`https://${process.env.REACT_APP_NETWORK}.infura.io/v3/1c8b15f18bcf4477810d7d44980d2413`);
-const routerAddy = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D";
-const routerContract = new ethers.Contract(routerAddy, ['function getAmountsOut(uint amountIn, address[] memory path) external view returns (uint[] memory amounts)', 'function WETH() external pure returns (address)'], provider);
-const abiCoder = new ethers.utils.AbiCoder();
+import LoadingIcon from './component/LoadingIcon';
+
+import WalletItem from './component/WalletItem';
+import TransactionList from './component/TransactionList';
+import UnitConvert from './component/UnitConvert';
+import HexModal from './component/HexModal';
+
+const provider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL);
+const multiCallAddy = "0x3f69a12700bD8B8143d0F5CBC01b42B1eC0bBC49";
+const multiCallContract = new ethers.Contract(multiCallAddy, [
+    'function getEthsByCross(address[] memory tokens, address[] memory accounts) external view returns (uint[][] memory)',
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "token",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "percent",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct FlashBotsMultiCall.Wallet[]",
+          "name": "wallets",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "getEthsByWallet",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+  ], provider);
 
 function App() {
 
-  const [settings, setSettings] = useState([]); 
+  const [settings, setSettings] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [tokens, setTokens] = useState([]);
-  const [clock, setClock] = useState(0);
+  const [tokensByAccounts, setTokensByAccounts] = useState({});
+  const [balances, setBalances] = useState([]);
+
   const [transactions, setTransactions] = useState([]);
+  
   const [gasMaxFee, setGasMaxFee] = useState('');
   const [maxPriorityFee, setMaxPriorityFee] = useState('');
   const [gasLimit, setGasLimit] = useState('');
@@ -30,29 +75,17 @@ function App() {
 
   const [tokenAddy1, setTokenAddy1] = useState("");
   const [tokenAddy2, setTokenAddy2] = useState("");
+  
   const [approveAllLoading, setApproveAllLoading] = useState(false);
   const [sellAllLoading, setSellAllLoading] = useState(false);
+  
   const [ethPrice, setETHPrice] = useState(0);
   const [gasFee, setGasFee] = useState(0);
-  const [wei, setWei] = useState('');
-  const [gwei, setGwei] = useState('');
-  const [ether, setEther] = useState('');
-
-  const [amountIn, setAmountIn] = useState("");
-  const [amountOutMin, setAmountOutMin] = useState("");
-  const [path, setPath] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [recipient, setRecipient] = useState("");
-  const [hex, setHex] = useState("");
+  const [ethBalances, setEthBalances] = useState([]);
 
   const [socketNum, setSocketNum] = useState(-1);
   const [pendings, setPendings] = useState([]);
 
-  const onGenerateClick = () => {
-    const paraHex = abiCoder.encode(["uint", "uint", "address[]", "address", "uint"], [amountIn, amountOutMin, JSON.parse(path), recipient, deadline]);
-    localStorage.setItem("generate_data", JSON.stringify({amountIn, amountOutMin, path: JSON.parse(path), recipient, deadline, hex: "0x791ac947" + paraHex.substr(2)}));
-    setHex("0x791ac947" + paraHex.substr(2));
-  }
 
   useEffect(() => {
     const connect = io(process.env.REACT_APP_BACKEND_API, { transports: ["websocket"] });
@@ -75,8 +108,8 @@ function App() {
     })
 
     AOS.init();
-    provider.on("block", async (blockNumber) => {
-      setClock(blockNumber);
+    provider.on("block", (blockNumber) => {
+      getEthBalances();
     })
 
     if(localStorage.getItem("tokenAddy1")) setTokenAddy1(localStorage.getItem("tokenAddy1"));
@@ -93,29 +126,63 @@ function App() {
     getGasFee();
     
 
-    if(localStorage.getItem("generate_data")) {
-      const params = JSON.parse(localStorage.getItem("generate_data"));
-      setAmountIn(params.amountIn);
-      setAmountOutMin(params.amountOutMin);
-      setPath(JSON.stringify(params.path));
-      setRecipient(params.recipient);
-      setDeadline(params.deadline);
-      setHex(params.hex);
-    }
+    fetch(process.env.REACT_APP_BACKEND_API + "/getAccounts").then(resp => resp.json()).then(res => {
+      setAccounts(res.map(acc => { return {...acc, address: acc.address.toLowerCase() }}));
+    })
+    if(localStorage.getItem("tokens")) setTokens(JSON.parse(localStorage.getItem("tokens")));
+    if(localStorage.getItem("transactions")) setTransactions(JSON.parse(localStorage.getItem("transactions")));
+    if(localStorage.getItem("settings")) setSettings(JSON.parse(localStorage.getItem("settings")));
   }, []);
   
+  useEffect(async () => {
+    if(accounts.length > 0 && tokens.length > 0) {
+      var results = await multiCallContract.getEthsByCross(tokens.map(token => token.address), accounts.map(account => account.address));
+      setEthBalances(results);
+    }
+  }, [accounts, tokens]);
+  
+  useEffect(() => {
+    if(ethBalances.length > 0 && ethPrice > 0) {
+      var tba = {};
+      for(var i = 0; i < tokens.length; i ++) {
+        for(var j = 0; j < accounts.length; j ++) {
+          if(tba[accounts[j].address] == undefined) tba[accounts[j].address] = []; 
+          if(ethers.utils.formatEther(ethBalances[i][j]) * ethPrice > 50) {
+            tba[accounts[j].address].push(tokens[i]);
+          }
+        }
+      }
+      setTokensByAccounts(tba);
+    }
+  }, [ethBalances, ethPrice]);
+
   const addPending = (pending) => {
     setPendings([...pendings, pending]);
   }
 
   useEffect(() => {
-    fetch(process.env.REACT_APP_BACKEND_API + "/getAccounts").then(resp => resp.json()).then(res => {
-        setAccounts(res.map(acc => { return {...acc, address: acc.address.toLowerCase() }}));
-    })
-    if(localStorage.getItem("tokens")) setTokens(JSON.parse(localStorage.getItem("tokens")));
-    if(localStorage.getItem("settings")) setSettings(JSON.parse(localStorage.getItem("settings")));
-    if(localStorage.getItem("transactions")) setTransactions(JSON.parse(localStorage.getItem("transactions")));
-  }, []);
+    getEthBalances();
+  }, [settings]);
+
+  const getEthBalances = async () => {
+    if(settings.length == 0) return;
+    
+    var results = await multiCallContract.getEthsByWallet(
+      settings
+      .filter(setting=>{ return setting.tokenAddy != "" && setting.walletAddy != "" && setting.percent > 0; })
+      .map(setting => { return {account: setting.walletAddy, token: setting.tokenAddy, percent: setting.percent}; })
+    );
+    
+    var k = 0;
+    const new_balances = settings.map(setting => {
+      if(setting.walletAddy && setting.tokenAddy && setting.percent) {
+        return results[k++];
+      } else {
+        return 0;
+      }
+    });
+    setBalances(new_balances);
+  }
 
   const getETHPrice = async () => {
     await axios.get("https://api.etherscan.io/api?module=stats&action=ethprice&apikey=5Z1RRTM3R1VF8U9BS6DVBZZEACU5XUN59Q").then((res) => {
@@ -150,11 +217,29 @@ function App() {
     localStorage.setItem("settings", JSON.stringify(new_settings));
   }
 
-  const onChangeSetting = (_idx, _setting) => {
+  const onChangeAccount = (_idx, walletAddy) => {
     const new_settings = settings.map((setting, idx) => {
-      if(idx == _idx) return _setting;
-      else return setting;
-    });
+      if(idx != _idx) return setting;
+      return {...setting, walletAddy}
+    })
+    setSettings(new_settings);
+    localStorage.setItem("settings", JSON.stringify(new_settings));
+  }
+
+  const onChangeToken = (_idx, tokenAddy) => {
+    const new_settings = settings.map((setting, idx) => {
+      if(idx != _idx) return setting;
+      return {...setting, tokenAddy}
+    })
+    setSettings(new_settings);
+    localStorage.setItem("settings", JSON.stringify(new_settings));
+  }
+
+  const onChangePercent = (_idx, percent) => {
+    const new_settings = settings.map((setting, idx) => {
+      if(idx != _idx) return setting;
+      return {...setting, percent}
+    })
     setSettings(new_settings);
     localStorage.setItem("settings", JSON.stringify(new_settings));
   }
@@ -304,8 +389,21 @@ function App() {
     const name = await tokenContract.name();
     const symbol = await tokenContract.symbol();
     const decimals = await tokenContract.decimals();
-    tokens.push({name, symbol, decimals, address: tokenAddy});
-    localStorage.setItem("tokens", JSON.stringify(tokens));
+    const new_tokens = [...tokens, {name, symbol, decimals, address: tokenAddy}];
+    setTokens(new_tokens);
+    var tba = {};
+    for(var i = 0; i < accounts.length; i ++) {
+      tba[accounts[i].address] = [...tokensByAccounts[accounts[i].address], {name, symbol, decimals, address: tokenAddy}];
+    }
+    setTokensByAccounts(tba);
+    localStorage.setItem("tokens", JSON.stringify(new_tokens));
+    var results = await multiCallContract.getEthsByCross([tokenAddy], accounts.map(account => account.address));
+    var new_settings = [...settings];
+    for(var i = 0; i < accounts.length; i ++) {
+      if(ethers.utils.formatEther(results[0][i]) * ethPrice >= 50) new_settings.push({tokenAddy: tokenAddy, walletAddy: accounts[i].address, percent: 100});
+    }
+    setSettings(new_settings);
+    localStorage.setItem("settings", JSON.stringify(new_settings));
   }
 
   const updateApprovAndSell = async (e) => {
@@ -314,16 +412,22 @@ function App() {
     if(tokenAddy1) {
       setTokenAddy1(tokenAddy1);
       localStorage.setItem("tokenAddy1", tokenAddy1);
-      checkAddy(tokenAddy1.toLowerCase());
     }
     if(tokenAddy2) {
       setTokenAddy2(tokenAddy2);
       localStorage.setItem("tokenAddy2", tokenAddy2);
-      checkAddy(tokenAddy2.toLowerCase());
     }
     NotificationManager.success("Success");
-    if(tokenAddy1) await checkAddy(tokenAddy1.toLowerCase());
-    if(tokenAddy2) await checkAddy(tokenAddy2.toLowerCase());
+    if(tokenAddy1 && tokenAddy2) {
+      if(tokenAddy1 == tokenAddy2) checkAddy(tokenAddy1.toLowerCase());
+      else {
+        await checkAddy(tokenAddy1.toLowerCase());
+        await checkAddy(tokenAddy2.toLowerCase());
+      }
+    } else {
+      if(tokenAddy1) checkAddy(tokenAddy1.toLowerCase());
+      if(tokenAddy2) checkAddy(tokenAddy2.toLowerCase());
+    }
   }
 
   const updateGasDetails = (e) => {
@@ -344,39 +448,6 @@ function App() {
         if (maxPriorityFee) setMaxPriorityFee(maxPriorityFee);
         if (slippage) setSlippage(slippage);
       }
-    }
-  }
-
-  const formatUnit = () => {
-    setWei('');
-    setGwei('');
-    setEther('');
-  }
-
-  const onChangeWei = (val) => {
-    if (!val) formatUnit();
-    else {
-      setWei(val);
-      setGwei(ethers.utils.formatUnits(val,"gwei"));
-      setEther(ethers.utils.formatEther(val));
-    }
-  }
-
-  const onChangeGwei = (val) => {
-    if (!val) formatUnit();
-    else {
-      setWei(ethers.utils.parseUnits(val,"gwei"));
-      setGwei(val);
-      setEther(ethers.utils.formatEther(ethers.utils.parseUnits(val,"gwei")));
-    }
-  }
-
-  const onChangeEther = (val) => {
-    if (!val) formatUnit();
-    else {
-      setGwei(ethers.utils.formatUnits(ethers.utils.parseEther(val),"gwei"));
-      setWei(ethers.utils.parseEther(val));
-      setEther(val);
     }
   }
 
@@ -407,21 +478,7 @@ function App() {
                     <li><a href="https://ethervm.io/decompile/0x2E65C91716fE7eABFb0c5c78E3447105EDabc8cb" target="_blank" className="nav-item"><img src="resources/images/svg/decompiler.svg"/> Decompiler</a></li>
                     </ul>
                     <hr/>
-                    <h6>Ethereum Unit Converter</h6>
-                    <ul className="ethereum-unit-converter-list">
-                    <li>
-                        <label>Wei</label>
-                        <input type="text" placeholder="Wei" className="form-control" id="wei-converter" aria-describedby="wei-converter" value={wei} onChange={(e) => onChangeWei(e.target.value)}/>
-                    </li>
-                    <li>
-                        <label>Gwei</label>
-                        <input type="text" placeholder="Gwei" className="form-control" id="gwei-converter" aria-describedby="gwei-converter" value={gwei} onChange={(e) => onChangeGwei(e.target.value)}/>
-                    </li>
-                    <li>
-                        <label>Ether</label>
-                        <input type="text" placeholder="Ether" className="form-control" id="ether-converter" aria-describedby="ether-converter" value={ether} onChange={(e) => onChangeEther(e.target.value)}/>
-                    </li>
-                    </ul>
+                    <UnitConvert/>
                 </div>  
                 </div>
 
@@ -435,11 +492,11 @@ function App() {
 
         <main>
             <div className="container">
-                <section id="mobile-header">
+              <section id="mobile-header">
                 <h5>Eon Wallet Dashboard</h5>
                 <a href="#" className="btn full-width mb-4" data-bs-toggle="modal" data-bs-target="#hexdataModal">Generate Hexdata</a>
-                </section>
-                <section id="wallets">
+              </section>
+              <section id="wallets">
                 <div className="section-title--flex">
                     <h4 className="section-title" data-aos="fade-right"><i className="fas fa-wallet me-3"></i>Wallets</h4>
                     <div className="live-prices--column">
@@ -589,57 +646,35 @@ function App() {
 
                 <div className="wallet--grid">
                 {
+                  accounts ?
                   settings.map((setting, idx) => {
-                    return <WalletItem clock={clock} key={idx} idx={idx} setting={setting} accounts={accounts} tokens={tokens} onChangeSetting={onChangeSetting} onDelClick={onDelClick} routerContract={routerContract} addTransaction={addTransaction} ethPrice={ethPrice} socketNum={socketNum} pendings={pendings.filter(pending => pending.idx == idx)}/>
-                  })
+                      return <WalletItem 
+                          key={idx} idx={idx} 
+                          accounts={accounts} 
+                          tokens={tokensByAccounts[setting.walletAddy] ? tokensByAccounts[setting.walletAddy]: tokens} 
+                          setting={setting} 
+                          balances={balances}
+                          addTransaction={addTransaction} 
+                          ethPrice={ethPrice} 
+                          socketNum={socketNum}  
+                          pendings={pendings.filter(pending => pending.idx == idx)}  
+                          
+                          onDelClick={onDelClick} 
+                          onChangeAccount={onChangeAccount} 
+                          onChangeToken={onChangeToken} 
+                          onChangePercent={onChangePercent} 
+                        />
+                  }) 
+                  :
+                  <LoadingIcon></LoadingIcon>
                 }
                 </div>
 
-                </section>
-                <TransactionList data={transactions} ethPrice={ethPrice}/>
+              </section>
+              <TransactionList data={transactions} ethPrice={ethPrice}/>
             </div>
         </main>
-
-        <div className="modal" tabIndex="-1" id="hexdataModal">
-            <div className="modal-dialog modal-dialog-centered">
-                <div className="modal-content">
-                    <div className="modal-header">
-                        <h5 className="modal-title">Generate Hexdata</h5>
-                        <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"><i className="fas fa-times"></i></button>
-                    </div>
-                    <div className="modal-body">
-                    <form>
-                        <label>AmountIn (Token Amount)</label>
-                        <div className="input-group">
-                        <input type="number" placeholder="0"  value={amountIn} onChange={(event)=>{setAmountIn(event.target.value)}} className="form-control" id="token-amount" aria-describedby="token-amount" required/>
-                        </div>
-                        <label>Amount Out Min</label>
-                        <div className="input-group">
-                        <input type="number" placeholder="1"  value={amountOutMin} onChange={(event)=>{setAmountOutMin(event.target.value)}} className="form-control" id="amount-out-min" aria-describedby="amount-out-min" required/>
-                        </div>
-                        <label>Path Address</label>
-                        <div className="input-group">
-                        <input placeholder="address 1, address 2"  value={path} onChange={(event)=>{setPath(event.target.value)}} className="form-control" id="path-address" aria-describedby="path-address" required/>
-                        </div>
-                        <label>Receiver Address</label>
-                        <div className="input-group">
-                        <input  value={recipient} onChange={(event)=>{setRecipient(event.target.value)}} className="form-control" id="receiver-address" aria-describedby="receiver-address" required/>
-                        </div>
-                        <label>Deadline</label>
-                        <div className="input-group">
-                        <input type="number" placeholder="10000000000000000" value={deadline} onChange={(event)=>{setDeadline(event.target.value)}} className="form-control" id="deadline" aria-describedby="deadline" required/>
-                        </div>
-                        <label>Hex</label>
-                        <div className="input-group">
-                        <input value={hex} className="form-control" aria-describedby="deadline" required readOnly/>
-                        </div>
-                        <button type="button" className="btn green m-auto" onClick={onGenerateClick}>Generate</button>
-                    </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+        <HexModal/>
       </div>
     </div>
   );
