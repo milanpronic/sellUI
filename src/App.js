@@ -63,7 +63,6 @@ function App() {
   const [settings, setSettings] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [tokens, setTokens] = useState([]);
-  const [tokensByAccounts, setTokensByAccounts] = useState({});
   const [balances, setBalances] = useState([]);
 
   const [transactions, setTransactions] = useState([]);
@@ -81,7 +80,7 @@ function App() {
   
   const [ethPrice, setETHPrice] = useState(0);
   const [gasFee, setGasFee] = useState(0);
-  const [ethBalances, setEthBalances] = useState([]);
+  const [ethBalances100, setEthBalances100] = useState({});
 
   const [socketNum, setSocketNum] = useState(-1);
   const [pendings, setPendings] = useState([]);
@@ -137,25 +136,17 @@ function App() {
   useEffect(async () => {
     if(accounts.length > 0 && tokens.length > 0) {
       var results = await multiCallContract.getEthsByCross(tokens.map(token => token.address), accounts.map(account => account.address));
-      setEthBalances(results);
+      var tba = {};
+      for(var i = 0; i < tokens.length; i ++) {
+        tba[tokens[i].address] = {};
+        for(var j = 0; j < accounts.length; j ++) {
+          tba[tokens[i].address][accounts[j].address] = results[i][j];
+        }
+      }
+      setEthBalances100(tba);
     }
   }, [accounts, tokens]);
   
-  useEffect(() => {
-    if(ethBalances.length > 0 && ethPrice > 0) {
-      var tba = {};
-      for(var i = 0; i < tokens.length; i ++) {
-        for(var j = 0; j < accounts.length; j ++) {
-          if(tba[accounts[j].address] == undefined) tba[accounts[j].address] = []; 
-          if(ethers.utils.formatEther(ethBalances[i][j]) * ethPrice > 50) {
-            tba[accounts[j].address].push(tokens[i]);
-          }
-        }
-      }
-      setTokensByAccounts(tba);
-    }
-  }, [ethBalances, ethPrice]);
-
   const addPending = (pending) => {
     setPendings([...pendings, pending]);
   }
@@ -176,7 +167,7 @@ function App() {
     var k = 0;
     const new_balances = settings.map(setting => {
       if(setting.walletAddy && setting.tokenAddy && setting.percent) {
-        return results[k++];
+        return ethers.utils.formatEther(results[k++]);
       } else {
         return 0;
       }
@@ -391,12 +382,8 @@ function App() {
     const decimals = await tokenContract.decimals();
     const new_tokens = [...tokens, {name, symbol, decimals, address: tokenAddy}];
     setTokens(new_tokens);
-    var tba = {};
-    for(var i = 0; i < accounts.length; i ++) {
-      tba[accounts[i].address] = [...tokensByAccounts[accounts[i].address], {name, symbol, decimals, address: tokenAddy}];
-    }
-    setTokensByAccounts(tba);
     localStorage.setItem("tokens", JSON.stringify(new_tokens));
+
     var results = await multiCallContract.getEthsByCross([tokenAddy], accounts.map(account => account.address));
     var new_settings = [...settings];
     for(var i = 0; i < accounts.length; i ++) {
@@ -650,14 +637,18 @@ function App() {
                   settings.map((setting, idx) => {
                       return <WalletItem 
                           key={idx} idx={idx} 
+                          
                           accounts={accounts} 
-                          tokens={tokensByAccounts[setting.walletAddy] ? tokensByAccounts[setting.walletAddy]: tokens} 
-                          setting={setting} 
-                          balances={balances}
-                          addTransaction={addTransaction} 
+                          tokens={tokens} 
+                          ethBalances100={ethBalances100}
                           ethPrice={ethPrice} 
+
+                          setting={setting} 
+                          balance={balances[idx]}
+                          pendings={pendings.filter(pending => pending.idx == idx)}
+
+                          addTransaction={addTransaction} 
                           socketNum={socketNum}  
-                          pendings={pendings.filter(pending => pending.idx == idx)}  
                           
                           onDelClick={onDelClick} 
                           onChangeAccount={onChangeAccount} 

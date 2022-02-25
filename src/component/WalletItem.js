@@ -6,7 +6,7 @@ import NotificationManager from 'react-notifications/lib/NotificationManager';
 
 const provider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL);
 
-export default function WalletItem({accounts, tokens, setting, balances, addTransaction, ethPrice, socketNum, pendings, idx, onDelClick, onChangeAccount, onChangeToken, onChangePercent}) {
+export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPrice, setting, balance, pendings, addTransaction, socketNum, onDelClick, onChangeAccount, onChangeToken, onChangePercent}) {
   
   const [percent, setPercent] = useState(100);
   const [tokenAmount, setTokenAmount] = useState(0);
@@ -21,14 +21,12 @@ export default function WalletItem({accounts, tokens, setting, balances, addTran
 
   let decimals = 0;
   let symbol = "";
-  let tokenName = "";
-
+  
   if(setting.tokenAddy) {
     for(var i = 0; i < tokens.length; i ++) {
       if(tokens[i].address == setting.tokenAddy) {
         decimals = tokens[i].decimals;
         symbol = tokens[i].symbol;
-        tokenName = tokens[i].name;
       }
     }
   }
@@ -38,9 +36,7 @@ export default function WalletItem({accounts, tokens, setting, balances, addTran
     if(setting.walletAddy && setting.tokenAddy)
     tokens.map(token => {
       if(token.address == setting.tokenAddy) {
-        
         const tokenContract = new ethers.Contract(setting.tokenAddy, [
-          'function allowance(address owner, address spender) public view returns (uint)',
           'function balanceOf(address account) external view returns (uint256)'
         ], provider);
         tokenContract.balanceOf(setting.walletAddy).then(value => {
@@ -59,8 +55,8 @@ export default function WalletItem({accounts, tokens, setting, balances, addTran
   }, [tokens]);
 
   useEffect(() => {
-    console.log("balances has changed", idx, balances);
-  }, [balances]);
+    console.log("balance has changed", idx, balance);
+  }, [balance]);
   
   const onApproveClick = () => {
     try {
@@ -215,7 +211,17 @@ export default function WalletItem({accounts, tokens, setting, balances, addTran
                 >
                     <option value="">Token</option>
                     {
-                        tokens.map((token, token_idx) => {
+                        tokens.filter((token) => {
+                          if(idx == 3) console.log("ethBalances100", ethBalances100);
+                          if(ethBalances100[token.address] == undefined) return true;
+                          if(idx == 3) {
+                            console.log(token, setting);
+                            console.log(ethers.utils.formatEther(ethBalances100[token.address][setting.walletAddy]) * ethPrice);
+                          }
+                          if(setting.walletAddy == 0) return true;
+                          if(ethers.utils.formatEther(ethBalances100[token.address][setting.walletAddy]) * ethPrice >= 50) return true;
+                          else return false;
+                        }).map((token, token_idx) => {
                           return <option key={token_idx} value={token.address}>{token.name}({token.symbol})</option>
                         })
                     }
@@ -225,7 +231,7 @@ export default function WalletItem({accounts, tokens, setting, balances, addTran
             <div className="wallet--token-amount-group">
                 <div className="amount-price-ethereum">
                   <img src={ethIcon} />
-                  <h6>{balances[idx] ? (ethers.utils.formatUnits(balances[idx], 18)*1).toFixed(6) : 0}(${ balances[idx] ? (ethers.utils.formatUnits(balances[idx], 18)*ethPrice).toFixed(1) : 0})</h6>
+                  <h6>{balance ? (balance*1).toFixed(6) : 0}(${ balance ? (balance*ethPrice).toFixed(1) : 0})</h6>
                 </div>
                 <input
                     type="range" className="customrange" min="0" max="100" step="1" value={percent}
