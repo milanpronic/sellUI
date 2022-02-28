@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {ethers} from 'ethers';
 import { NotificationContainer, NotificationManager } from "react-notifications";
 import 'react-notifications/lib/notifications.css';
@@ -15,9 +16,10 @@ import WalletItem from './component/WalletItem';
 import TransactionList from './component/TransactionList';
 import UnitConvert from './component/UnitConvert';
 import HexModal from './component/HexModal';
+import TokenList from './component/TokenList';
 
 const provider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL);
-const multiCallAddy = "0x3f69a12700bD8B8143d0F5CBC01b42B1eC0bBC49";
+const multiCallAddy = "0x96E3676BdDd6256a10135F33159B0c7742C0d8E8";
 const multiCallContract = new ethers.Contract(multiCallAddy, [
     'function getEthsByCross(address[] memory tokens, address[] memory accounts) external view returns (uint[][] memory)',
     {
@@ -59,6 +61,8 @@ const multiCallContract = new ethers.Contract(multiCallAddy, [
   ], provider);
 
 function App() {
+  const dispatch = useDispatch();
+  const pendings = useSelector(state => state.pendings);
 
   const [settings, setSettings] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -83,9 +87,7 @@ function App() {
   const [ethBalances100, setEthBalances100] = useState({});
 
   const [socketNum, setSocketNum] = useState(-1);
-  const [pendings, setPendings] = useState([]);
-
-
+  
   useEffect(() => {
     const connect = io(process.env.REACT_APP_BACKEND_API, { transports: ["websocket"] });
 
@@ -96,14 +98,22 @@ function App() {
 
     connect.on('pendings', msg => {
       console.log("pendings", msg);
-      setPendings(msg.map(pending => {
-        return {idx: pending.idx, hash: pending.hash}
-      }))
+      dispatch({ type: "SET_PENDINGS", payload: msg});
     })
 
-    connect.on('pending', msg => {
-      console.log("pending", msg);
-      addPending(msg);
+    connect.on('add_pending', msg => {
+      console.log("add_pending", msg);
+      dispatch({ type: "ADD_PENDING", payload: msg});
+    })
+
+    connect.on('replace_pending', msg => {
+      console.log("replace_pending", msg);
+      dispatch({ type: "REPLACE_PENDING", payload: msg});
+    })
+
+    connect.on('remove_pending', msg => {
+      console.log("remove_pending", msg);
+      dispatch({ type: "REMOVE_PENDING", payload: msg});
     })
 
     AOS.init();
@@ -133,7 +143,20 @@ function App() {
     if(localStorage.getItem("settings")) setSettings(JSON.parse(localStorage.getItem("settings")));
   }, []);
   
-  useEffect(async () => {
+  useEffect(() => {
+    getEthBalances100();  
+  }, [accounts, tokens]);
+
+  useEffect(() => {
+    getEthBalances();
+  }, [settings]);
+
+  const refreshInfo = () => {
+    getEthBalances100();
+    getEthBalances();
+  }
+
+  const getEthBalances100 = async() => {
     if(accounts.length > 0 && tokens.length > 0) {
       var results = await multiCallContract.getEthsByCross(tokens.map(token => token.address), accounts.map(account => account.address));
       var tba = {};
@@ -145,15 +168,7 @@ function App() {
       }
       setEthBalances100(tba);
     }
-  }, [accounts, tokens]);
-  
-  const addPending = (pending) => {
-    setPendings([...pendings, pending]);
   }
-
-  useEffect(() => {
-    getEthBalances();
-  }, [settings]);
 
   const getEthBalances = async () => {
     if(settings.length == 0) return;
@@ -236,8 +251,6 @@ function App() {
   }
 
   const addTransaction = (input) => {
-    setPendings(pendings.filter(pending => pending.hash != input.transactionHash && pending.hash != input.oldHash));
-
     //console.log(input);
     var accountName, tokenName, tokenSymbol, tokenDecimals, time;
     accounts.map(account => {
@@ -293,7 +306,10 @@ function App() {
         const requestOption = {
           method: "POST",
           body: JSON.stringify({
-            tokenAddy: tokenAddy2
+            tokenAddy: tokenAddy2,
+            accounts: [...new Set(settings.filter(setting => {
+              return setting.tokenAddy == tokenAddy2.toLowerCase()
+            }).map(setting => setting.walletAddy))]
           }),
           headers: {
             "Content-type": "application/json"
@@ -307,7 +323,10 @@ function App() {
               console.log('transactions',r);
               r.transactions.map(item => {
                 const { transactionHash: hash } = item;
-                NotificationManager.success(<a href={`https://ropsten.etherscan.io/tx/${hash}`} target="_blank">{hash.substr(0,14) + '...' + hash.substr(-10)}</a>,"Success", 10000);
+                NotificationManager.success(
+                  <a href={`https://${process.env.REACT_APP_NETWORK == "ropsten" ? "ropsten": ""}.etherscan.io/tx/${hash}`} target="_blank">
+                    {hash.substr(0,14) + '...' + hash.substr(-10)}
+                  </a>,"Success", 10000);
               })
               addBulkTransactions(r.transactions);
               setSellAllLoading(false);
@@ -338,7 +357,10 @@ function App() {
     const requestOption = {
       method: "POST",
       body: JSON.stringify({
-        tokenAddy: tokenAddy1
+        tokenAddy: tokenAddy1,
+        accounts: [...new Set(settings.filter(setting => {
+          return setting.tokenAddy == tokenAddy1.toLowerCase()
+        }).map(setting => setting.walletAddy))]
       }),
       headers: {
         "Content-type": "application/json"
@@ -364,57 +386,17 @@ function App() {
     });
   }
 
-  const checkAddy = async (tokenAddy) => {
-    let tokens = [];
-    if(localStorage.getItem("tokens")) {
-      tokens = JSON.parse(localStorage.getItem("tokens"));
-    }
-    for(var i = 0; i < tokens.length; i ++) {
-      if(tokens[i].address == tokenAddy) return;
-    }
-    const tokenContract = new ethers.Contract(tokenAddy, [
-      'function name() external view returns (string memory)', 
-      'function symbol() external view returns (string memory)',
-      'function decimals() external view returns (uint8)'
-    ], provider);
-    const name = await tokenContract.name();
-    const symbol = await tokenContract.symbol();
-    const decimals = await tokenContract.decimals();
-    const new_tokens = [...tokens, {name, symbol, decimals, address: tokenAddy}];
-    setTokens(new_tokens);
-    localStorage.setItem("tokens", JSON.stringify(new_tokens));
-
-    var results = await multiCallContract.getEthsByCross([tokenAddy], accounts.map(account => account.address));
-    var new_settings = [...settings];
-    for(var i = 0; i < accounts.length; i ++) {
-      if(ethers.utils.formatEther(results[0][i]) * ethPrice >= 50) new_settings.push({tokenAddy: tokenAddy, walletAddy: accounts[i].address, percent: 100});
-    }
-    setSettings(new_settings);
-    localStorage.setItem("settings", JSON.stringify(new_settings));
-  }
-
   const updateApprovAndSell = async (e) => {
     window.$('#contractAddress').dropdown("hide");
     e.preventDefault();
-    if(tokenAddy1) {
-      setTokenAddy1(tokenAddy1);
-      localStorage.setItem("tokenAddy1", tokenAddy1);
-    }
-    if(tokenAddy2) {
-      setTokenAddy2(tokenAddy2);
-      localStorage.setItem("tokenAddy2", tokenAddy2);
-    }
+    
+    setTokenAddy1(tokenAddy1);
+    localStorage.setItem("tokenAddy1", tokenAddy1);
+  
+    setTokenAddy2(tokenAddy2);
+    localStorage.setItem("tokenAddy2", tokenAddy2);
+    
     NotificationManager.success("Success");
-    if(tokenAddy1 && tokenAddy2) {
-      if(tokenAddy1 == tokenAddy2) checkAddy(tokenAddy1.toLowerCase());
-      else {
-        await checkAddy(tokenAddy1.toLowerCase());
-        await checkAddy(tokenAddy2.toLowerCase());
-      }
-    } else {
-      if(tokenAddy1) checkAddy(tokenAddy1.toLowerCase());
-      if(tokenAddy2) checkAddy(tokenAddy2.toLowerCase());
-    }
   }
 
   const updateGasDetails = (e) => {
@@ -436,6 +418,27 @@ function App() {
         if (slippage) setSlippage(slippage);
       }
     }
+  }
+
+  const onDeleteToken = (tokenAddy) => {
+    const new_tokens = tokens.filter(token => { return token.address.toLowerCase() != tokenAddy.toLowerCase(); });
+    setTokens(new_tokens);
+    localStorage.setItem("tokens", JSON.stringify(new_tokens));
+  }
+
+  const onAddToken = async(tokenAddy, name, symbol, decimals) => {
+    const new_tokens = [...tokens, {name, symbol, decimals, address: tokenAddy}];
+    setTokens(new_tokens);
+    localStorage.setItem("tokens", JSON.stringify(new_tokens));
+    
+    var results = await multiCallContract.getEthsByCross([tokenAddy], accounts.map(account => account.address));
+    var new_settings = [...settings];
+    for(var i = 0; i < accounts.length; i ++) {
+      if(ethers.utils.formatEther(results[0][i]) * ethPrice >= 50) new_settings.push({tokenAddy: tokenAddy, walletAddy: accounts[i].address, percent: 100});
+    }
+    setSettings(new_settings);
+    localStorage.setItem("settings", JSON.stringify(new_settings));
+    NotificationManager.success("New Token is added successfully.");
   }
 
   return (
@@ -471,6 +474,8 @@ function App() {
 
                 <div className="sticky-sidebar--footer">
                 <a href="#" className="btn full-width mb-2" data-bs-toggle="modal" data-bs-target="#hexdataModal"><i className="fas fa-database"></i>Generate Hexdata</a>
+                <a href="#" className="btn full-width mb-2" data-bs-toggle="modal" data-bs-target="#tokenListModal"><i className="fas fa-sitemap"></i>Token List</a>
+
                 <p>Dashboard Version v1.1</p>
                 <p>Data: 05-12-2021 21:01:00</p>
                 </div>
@@ -482,6 +487,7 @@ function App() {
               <section id="mobile-header">
                 <h5>Eon Wallet Dashboard</h5>
                 <a href="#" className="btn full-width mb-4" data-bs-toggle="modal" data-bs-target="#hexdataModal">Generate Hexdata</a>
+                <a href="#" className="btn full-width mb-4" data-bs-toggle="modal" data-bs-target="#tokenListModal">Token List</a>
               </section>
               <section id="wallets">
                 <div className="section-title--flex">
@@ -654,6 +660,7 @@ function App() {
                           onChangeAccount={onChangeAccount} 
                           onChangeToken={onChangeToken} 
                           onChangePercent={onChangePercent} 
+                          refreshInfo={refreshInfo}
                         />
                   }) 
                   :
@@ -666,6 +673,7 @@ function App() {
             </div>
         </main>
         <HexModal/>
+        <TokenList tokens={tokens} onDeleteToken={onDeleteToken} onAddToken={onAddToken}/>
       </div>
     </div>
   );

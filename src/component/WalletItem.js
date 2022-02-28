@@ -6,7 +6,7 @@ import NotificationManager from 'react-notifications/lib/NotificationManager';
 
 const provider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL);
 
-export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPrice, setting, balance, pendings, addTransaction, socketNum, onDelClick, onChangeAccount, onChangeToken, onChangePercent}) {
+export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPrice, setting, balance, pendings, addTransaction, socketNum, onDelClick, onChangeAccount, onChangeToken, onChangePercent, refreshInfo}) {
   
   const [percent, setPercent] = useState(100);
   const [tokenAmount, setTokenAmount] = useState(0);
@@ -63,7 +63,7 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
       const requestOption = {
         method: "POST",
         body: JSON.stringify({
-          tokenAddy, walletAddy
+          ...setting
         }),
         headers: {
           "Content-type": "application/json"
@@ -95,14 +95,14 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
       const { gasMaxFee, gasLimit, maxPriorityFee, slippage} = localStorage.getItem("gasDetails") ? JSON.parse(localStorage.getItem("gasDetails")): {};
       if(!gasMaxFee || !gasLimit || !maxPriorityFee || !slippage) { NotificationManager.warning("gas Info not correct"); return; }
       
-      if (!tokenAmount || !decimals) {
-        NotificationManager.warning("Token amount is invalid");
+      if (!setting.walletAddy || !setting.tokenAddy || !setting.percent) {
+        NotificationManager.warning("setting is invalid");
         return;
       }
       const requestOption = {
         method: "POST",
         body: JSON.stringify({
-          tokenAddy, walletAddy, amountIn: ethers.utils.parseUnits(tokenAmount, decimals).mul(percent).div(100) + '', maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, limit : gasLimit, slippage, socketNum
+          ...setting, maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, gasLimit, slippage, socketNum, idx
         }),
         headers: {
           "Content-type": "application/json"
@@ -113,18 +113,22 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
         if(res.status == 200) {
           res.json().then(r => {
             addTransaction(r);
-            if(r.tokenAddy == tokenAddy) {
-              //console.log(ethers.utils.formatUnits(ethers.utils.parseUnits(tokenAmount, decimals).sub(ethers.BigNumber.from(r.amountIn)), decimals));
-              setTokenAmount(ethers.utils.formatUnits(ethers.utils.parseUnits(tokenAmount, decimals).sub(ethers.BigNumber.from(r.amountIn)), decimals));
+            if(r.tokenAddy == setting.tokenAddy) {
+              setTokenAmount(tokenAmount * (100 - percent) / 100);
+              refreshInfo();
             }
             setSellLoading(false);
             const {transactionHash: hash} = r;
-            NotificationManager.success(<a href={`https://ropsten.etherscan.io/tx/${hash}`} target="_blank">{hash.substr(0,14) + '...' + hash.substr(-10)}</a>,"Success", 10000);
+            NotificationManager.success(
+              <a href={`https://${process.env.REACT_APP_NETWORK == "ropsten" ? "ropsten": ""}.etherscan.io/tx/${hash}`} target="_blank">
+                {hash.substr(0,14) + '...' + hash.substr(-10)}
+              </a>,"Success", 10000);
           })
         }
         else {
           res.json().then(r => {
             NotificationManager.error(r.message);
+            setSellLoading(false);
           })
         }
       }).catch((err) => {
@@ -134,6 +138,7 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
     } catch(err) {
       console.log(err);
       NotificationManager.error(err.message);
+      setSellLoading(false);
     }
   }
 
@@ -145,7 +150,7 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
       const requestOption = {
         method: "POST",
         body: JSON.stringify({
-          tokenAddy, maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, limit : gasLimit, slippage, socketNum, hash
+          ...setting, maxFeePerGas: gasMaxFee, maxPriorityFeePerGas : maxPriorityFee, gasLimit, slippage, socketNum, hash
         }),
         headers: {
           "Content-type": "application/json"
@@ -157,13 +162,16 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
         if(res.status == 200) {
           res.json().then(r => {
             addTransaction(r);
-            if(r.tokenAddy == tokenAddy) {
-              //console.log(ethers.utils.formatUnits(ethers.utils.parseUnits(tokenAmount, decimals).sub(ethers.BigNumber.from(r.amountIn)), decimals));
-              setTokenAmount(ethers.utils.formatUnits(ethers.utils.parseUnits(tokenAmount, decimals).sub(ethers.BigNumber.from(r.amountIn)), decimals));
+            if(r.tokenAddy == setting.tokenAddy) {
+              setTokenAmount(tokenAmount * (100 - percent) / 100);
+              refreshInfo();
             }
             setSellLoading(false);
             const {transactionHash: hash} = r;
-            NotificationManager.success(<a href={`https://${process.env.REACT_APP_NETWORK == "ropsten" ? "ropsten.": ""}etherscan.io/tx/${hash}`} target="_blank">{hash.substr(0,14) + '...' + hash.substr(-10)}</a>,"Success", 10000);
+            NotificationManager.success(
+              <a href={`https://${process.env.REACT_APP_NETWORK == "ropsten" ? "ropsten": ""}.etherscan.io/tx/${hash}`} target="_blank">
+                {hash.substr(0,14) + '...' + hash.substr(-10)}
+              </a>,"Success", 10000);
           })
         }
         else {
@@ -261,7 +269,7 @@ export default function WalletItem({idx, accounts, tokens, ethBalances100, ethPr
                   <button type="button" className="btn full-width approve green" onClick={onApproveClick}>Approve</button> 
               }
               {
-                sellLoading ? 
+                sellLoading || pendings.length > 0 ? 
                   <button type="button" className="btn full-width sell disabled">
                     <LoadingIcon />
                   </button>

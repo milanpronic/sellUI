@@ -16,7 +16,9 @@
     "react-dom": "^17.0.2",
     "react-notification": "^6.8.5",
     "react-notifications": "^1.7.3",
+    "react-redux": "^7.2.6",
     "react-scripts": "5.0.0",
+    "redux": "^4.1.2",
     "socket.io-client": "^4.4.0",
     "styled-components": "^5.3.3",
     "web-vitals": "^2.1.2"

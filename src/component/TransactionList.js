@@ -26,7 +26,7 @@ export default function TransactionList({ data, ethPrice }) {
                     </thead>
                     <tbody>
                         {
-                            data && data.map((tx, idx) => {
+                            data && data.reverse().map((tx, idx) => {
                                 return <tr key={idx}>
                                     <td className="wallet">
                                         {tx.accountName}
