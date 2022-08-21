@@ -19,7 +19,7 @@ import HexModal from './component/HexModal';
 import TokenList from './component/TokenList';
 
 const provider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL);
-const multiCallAddy = "0x96E3676BdDd6256a10135F33159B0c7742C0d8E8";
+const multiCallAddy = "0xD51380d5b53824b6e7c304E48a09f22564F0DDE1";
 const multiCallContract = new ethers.Contract(multiCallAddy, [
     'function getEthsByCross(address[] memory tokens, address[] memory accounts) external view returns (uint[][] memory)',
     {
